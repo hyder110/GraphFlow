@@ -3,9 +3,8 @@ from langgraph.graph import StateGraph, START, END
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 import json
-import logging
 
-logger = logging.getLogger(__name__)
+from . import logger
 
 def build_langgraph_from_definition(definition: Dict[str, Any]) -> StateGraph:
     """
@@ -18,10 +17,18 @@ def build_langgraph_from_definition(definition: Dict[str, Any]) -> StateGraph:
         A compiled LangGraph StateGraph
     """
     try:
+        logger.info("Building LangGraph from definition")
+        
         # Extract graph components from definition
         nodes = definition.get("nodes", [])
         edges = definition.get("edges", [])
         state_type = definition.get("state_type", "dict")
+        
+        logger.debug("Graph components extracted", data={
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "state_type": state_type
+        })
         
         # Create a new StateGraph
         graph = StateGraph(state_type)
@@ -31,6 +38,11 @@ def build_langgraph_from_definition(definition: Dict[str, Any]) -> StateGraph:
             node_id = node["id"]
             node_type = node["type"]
             node_config = node.get("config", {})
+            
+            logger.debug(f"Adding node to graph", data={
+                "node_id": node_id,
+                "node_type": node_type
+            })
             
             # Create the node function based on node type
             node_function = create_node_function(node_type, node_config)
@@ -50,6 +62,12 @@ def build_langgraph_from_definition(definition: Dict[str, Any]) -> StateGraph:
             if target == "END":
                 target = END
             
+            logger.debug(f"Adding edge to graph", data={
+                "source": source if source != START else "START",
+                "target": target if target != END else "END",
+                "edge_type": edge_type
+            })
+            
             if edge_type == "conditional":
                 # For conditional edges, we need to create a router function
                 condition = edge.get("condition", {})
@@ -65,6 +83,7 @@ def build_langgraph_from_definition(definition: Dict[str, Any]) -> StateGraph:
                 graph.add_edge(source, target)
         
         # Compile the graph
+        logger.info("Compiling LangGraph")
         compiled_graph = graph.compile()
         
         return compiled_graph
@@ -84,10 +103,17 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
     Returns:
         A callable function that can be used as a node in the graph
     """
+    logger.debug(f"Creating node function", data={"node_type": node_type})
+    
     if node_type == "llm":
         # Create an LLM node
         model_name = config.get("model_name", "gpt-3.5-turbo")
         temperature = config.get("temperature", 0)
+        
+        logger.debug(f"Creating LLM node", data={
+            "model_name": model_name,
+            "temperature": temperature
+        })
         
         llm = ChatOpenAI(model_name=model_name, temperature=temperature)
         
@@ -103,6 +129,10 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
                     if key in state:
                         inputs[key] = state[key]
                 
+                logger.debug(f"Running LLM node with prompt template", data={
+                    "inputs": list(inputs.keys())
+                })
+                
                 # Run the chain
                 result = chain.invoke(inputs)
                 
@@ -117,6 +147,11 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
                 input_key = config.get("input_key", "input")
                 output_key = config.get("output_key", "output")
                 
+                logger.debug(f"Running simple LLM node", data={
+                    "input_key": input_key,
+                    "output_key": output_key
+                })
+                
                 if input_key in state:
                     result = llm.invoke(state[input_key])
                     return {output_key: result.content}
@@ -128,6 +163,8 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
         # Create a tool node
         tool_type = config.get("tool_type", "")
         
+        logger.debug(f"Creating tool node", data={"tool_type": tool_type})
+        
         if tool_type == "search":
             from langchain_community.tools.tavily_search import TavilySearchResults
             
@@ -136,6 +173,11 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
             def search_node(state):
                 input_key = config.get("input_key", "query")
                 output_key = config.get("output_key", "search_results")
+                
+                logger.debug(f"Running search tool node", data={
+                    "input_key": input_key,
+                    "output_key": output_key
+                })
                 
                 if input_key in state:
                     result = search_tool.invoke(state[input_key])
@@ -147,14 +189,22 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
         # Add more tool types as needed
         
         # Default empty tool
+        logger.warning(f"Unknown tool type: {tool_type}")
         return lambda state: {}
     
     elif node_type == "human":
         # Create a human-in-the-loop node
         # This is just a placeholder - in a real app, this would interact with the UI
+        logger.debug(f"Creating human node")
+        
         def human_node(state):
             input_key = config.get("input_key", "human_input")
             output_key = config.get("output_key", "human_response")
+            
+            logger.debug(f"Running human node", data={
+                "input_key": input_key,
+                "output_key": output_key
+            })
             
             # In a real app, this would wait for user input
             # For now, just pass through any existing input
@@ -168,10 +218,17 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
         # Create a transform node that applies a transformation to the state
         transform_type = config.get("transform_type", "")
         
+        logger.debug(f"Creating transform node", data={"transform_type": transform_type})
+        
         if transform_type == "extract_json":
             def extract_json_node(state):
                 input_key = config.get("input_key", "input")
                 output_key = config.get("output_key", "output")
+                
+                logger.debug(f"Running extract_json transform node", data={
+                    "input_key": input_key,
+                    "output_key": output_key
+                })
                 
                 if input_key in state:
                     try:
@@ -185,7 +242,8 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
                             json_str = text[start_idx:end_idx+1]
                             result = json.loads(json_str)
                             return {output_key: result}
-                    except:
+                    except Exception as e:
+                        logger.warning(f"Failed to extract JSON: {str(e)}")
                         # If extraction fails, return the original text
                         return {output_key: state[input_key]}
                 return {}
@@ -195,9 +253,15 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
         # Add more transform types as needed
         
         # Default pass-through transform
+        logger.warning(f"Unknown transform type: {transform_type}")
         def pass_through(state):
             input_key = config.get("input_key", "input")
             output_key = config.get("output_key", "output")
+            
+            logger.debug(f"Running pass-through transform node", data={
+                "input_key": input_key,
+                "output_key": output_key
+            })
             
             if input_key in state:
                 return {output_key: state[input_key]}
@@ -206,6 +270,7 @@ def create_node_function(node_type: str, config: Dict[str, Any]) -> Callable:
         return pass_through
     
     # Default empty node
+    logger.warning(f"Unknown node type: {node_type}")
     return lambda state: {}
 
 def create_router_function(condition: Dict[str, Any], destinations: List[str]) -> Callable:
@@ -221,6 +286,11 @@ def create_router_function(condition: Dict[str, Any], destinations: List[str]) -
     """
     condition_type = condition.get("type", "key_value")
     
+    logger.debug(f"Creating router function", data={
+        "condition_type": condition_type,
+        "destinations": destinations
+    })
+    
     if condition_type == "key_value":
         # Route based on a key's value
         key = condition.get("key", "")
@@ -232,8 +302,16 @@ def create_router_function(condition: Dict[str, Any], destinations: List[str]) -
                 value = state[key]
                 # Convert value to string for comparison
                 str_value = str(value)
+                
+                logger.debug(f"Routing based on key value", data={
+                    "key": key,
+                    "value": str_value
+                })
+                
                 if str_value in value_map:
                     return value_map[str_value]
+            
+            logger.debug(f"Using default route", data={"default": default})
             return default
         
         return key_value_router
@@ -252,19 +330,27 @@ def create_router_function(condition: Dict[str, Any], destinations: List[str]) -
             
             def function_router(state):
                 try:
+                    logger.debug(f"Routing based on custom function")
                     result = router_func(state)
+                    
                     if result in destinations:
+                        logger.debug(f"Custom function route", data={"route": result})
                         return result
+                    
+                    logger.debug(f"Using default route", data={"default": default})
                     return default
-                except:
+                except Exception as e:
+                    logger.error(f"Error in custom routing function: {str(e)}")
                     return default
             
             return function_router
-        except:
+        except Exception as e:
+            logger.error(f"Failed to create custom routing function: {str(e)}")
             # If the function is invalid, return a default router
             return lambda state: default
     
     # Default router that always returns the first destination
+    logger.warning(f"Unknown condition type: {condition_type}")
     return lambda state: destinations[0] if destinations else None
 
 def run_graph(graph, inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -279,8 +365,12 @@ def run_graph(graph, inputs: Dict[str, Any]) -> Dict[str, Any]:
         The final state after running the graph
     """
     try:
+        logger.info("Running LangGraph", data={"inputs": list(inputs.keys())})
+        
         # Run the graph
         result = graph.invoke(inputs)
+        
+        logger.info("LangGraph execution completed successfully")
         return result
     except Exception as e:
         logger.error(f"Error running LangGraph: {str(e)}")
