@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 249, 250, 251;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+.reactflow-wrapper {
+  width: 100%;
+  height: 100%;
+  min-height: 80vh;
+}
+
+.react-flow__node {
+  padding: 10px;
+  border-radius: 5px;
+  width: 150px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.react-flow__node-llm {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.react-flow__node-tool {
+  background-color: #10b981;
+  color: white;
+}
+
+.react-flow__node-human {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.react-flow__node-transform {
+  background-color: #8b5cf6;
+  color: white;
+}
+
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background-color: #555;
+}
+
+.react-flow__edge-path {
+  stroke: #555;
+  stroke-width: 2;
+}
+
+.react-flow__edge-text {
+  font-size: 10px;
+} 
