@@ -1,20 +1,57 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
+import os
+import logging
+import time
+from datetime import datetime
+import uuid
+from contextlib import asynccontextmanager
 
 # Import database and models (to be created)
 from .database import get_db, engine, Base
-from .models import Graph, GraphNode, GraphEdge
-from .schemas import GraphCreate, GraphResponse, GraphNodeCreate, GraphEdgeCreate, GraphRun
+from .models import Graph, GraphNode, GraphEdge, GraphExecution
+from .schemas import GraphCreate, GraphResponse, GraphNodeCreate, GraphEdgeCreate, GraphRun, GraphUpdate
 from .langgraph_builder import build_langgraph_from_definition, run_graph
 from . import logger
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("api.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("graphflow-api")
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="GraphFlow API", description="API for managing and running LangGraph workflows")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting GraphFlow API")
+    yield
+    logger.info("Shutting down GraphFlow API")
+
+app = FastAPI(title="GraphFlow API", description="API for managing and running LangGraph workflows", lifespan=lifespan)
+
+# Add middleware for request logging
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    logger.info(f"Request {request_id} started: {request.method} {request.url.path}")
+    start_time = time.time()
+    
+    response = await call_next(request)
+    
+    process_time = time.time() - start_time
+    logger.info(f"Request {request_id} completed: {response.status_code} in {process_time:.3f}s")
+    
+    return response
 
 # Configure CORS
 app.add_middleware(
@@ -24,6 +61,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+def read_root():
+    logger.info("Root endpoint accessed")
+    return {"message": "Welcome to GraphFlow API"}
 
 @app.get("/api/health")
 def health_check():
@@ -130,7 +172,23 @@ def run_graph_endpoint(graph_id: int, run_input: GraphRun, db: Session = Depends
         result = run_graph(langgraph, {"input": run_input.input})
         
         logger.info("Graph execution completed successfully", data={"graph_id": graph_id})
-        return result
+        
+        # Save the execution result
+        execution_time = datetime.now()
+        db_execution = GraphExecution(
+            graph_id=graph_id,
+            input_data=json.dumps(run_input.input),
+            output_data=json.dumps(result),
+            execution_time=execution_time
+        )
+        db.add(db_execution)
+        db.commit()
+        
+        return {
+            "result": result,
+            "execution_id": db_execution.id,
+            "execution_time": execution_time
+        }
     except Exception as e:
         logger.error(f"Error running graph: {str(e)}", data={"graph_id": graph_id, "error": str(e)})
         raise HTTPException(
@@ -138,6 +196,24 @@ def run_graph_endpoint(graph_id: int, run_input: GraphRun, db: Session = Depends
             detail=f"Failed to run graph: {str(e)}"
         )
 
+@app.get("/api/graphs/{graph_id}/executions", response_model=List[GraphExecution])
+def get_graph_executions(graph_id: int, db: Session = Depends(get_db)):
+    logger.info(f"Fetching executions for graph ID: {graph_id}")
+    executions = db.query(GraphExecution).filter(
+        GraphExecution.graph_id == graph_id
+    ).order_by(GraphExecution.execution_time.desc()).all()
+    
+    return executions
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
+    from .https_config import get_https_config
+    
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8000"))
+    
+    # Get HTTPS configuration if enabled
+    https_config = get_https_config()
+    
+    logger.info(f"Starting server on {host}:{port}")
+    uvicorn.run("app.api.main:app", host=host, port=port, reload=True, **https_config) 

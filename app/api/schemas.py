@@ -9,15 +9,25 @@ class GraphBase(BaseModel):
     definition: Dict[str, Any]
 
 class GraphCreate(GraphBase):
-    pass
+    nodes: List[Dict[str, Any]]
+    edges: List[Dict[str, Any]]
 
-class GraphResponse(GraphBase):
+class GraphUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    nodes: Optional[List[Dict[str, Any]]] = None
+    edges: Optional[List[Dict[str, Any]]] = None
+
+class Graph(GraphBase):
     id: int
+    nodes: List[Dict[str, Any]]
+    edges: List[Dict[str, Any]]
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime
 
     class Config:
         orm_mode = True
+        from_attributes = True
 
 # Node schemas
 class GraphNodeBase(BaseModel):
@@ -69,4 +79,25 @@ class GraphRunResponse(BaseModel):
     completed_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True 
+        orm_mode = True
+
+# Graph execution schemas
+class GraphExecutionBase(BaseModel):
+    graph_id: int
+    input_data: Dict[str, Any]
+    output_data: Dict[str, Any]
+
+class GraphExecutionCreate(GraphExecutionBase):
+    pass
+
+class GraphExecution(GraphExecutionBase):
+    id: int
+    execution_time: datetime
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+# Input for running a graph
+class GraphRunInput(BaseModel):
+    input: Dict[str, Any] = Field(..., description="Input data for the graph execution") 

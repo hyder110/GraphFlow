@@ -5,6 +5,9 @@ import 'reactflow/dist/style.css';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { LoadingProvider } from '../utils/loadingContext';
 
 // Layout component for consistent UI across pages
 const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -99,11 +102,35 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 };
 
 function MyApp({ Component, pageProps }: AppProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <ReactFlowProvider>
-      <Layout>
-        <Component {...pageProps} />
-      </Layout>
+      <Head>
+        <title>GraphFlow - LangGraph Visual Builder</title>
+        <meta name="description" content="A visual builder for LangGraph applications" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* Security headers */}
+        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:8000" />
+        <meta httpEquiv="X-Content-Type-Options" content="nosniff" />
+        <meta httpEquiv="X-Frame-Options" content="SAMEORIGIN" />
+        <meta httpEquiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+        <meta httpEquiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+      </Head>
+      <LoadingProvider>
+        <Layout>
+          <Component {...pageProps} />
+        </Layout>
+        <ToastContainer position="bottom-right" />
+      </LoadingProvider>
     </ReactFlowProvider>
   );
 }

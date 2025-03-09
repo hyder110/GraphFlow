@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from datetime import datetime
 from .database import Base
 
 class Graph(Base):
@@ -8,16 +9,15 @@ class Graph(Base):
     __tablename__ = "graphs"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
+    name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    definition = Column(JSON, nullable=False)  # Stores the complete graph definition as JSON
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    nodes = Column(Text, nullable=False)  # JSON string of nodes
+    edges = Column(Text, nullable=False)  # JSON string of edges
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    nodes = relationship("GraphNode", back_populates="graph", cascade="all, delete-orphan")
-    edges = relationship("GraphEdge", back_populates="graph", cascade="all, delete-orphan")
-    runs = relationship("GraphRun", back_populates="graph", cascade="all, delete-orphan")
+    executions = relationship("GraphExecution", back_populates="graph", cascade="all, delete-orphan")
 
 class GraphNode(Base):
     """Model for storing graph nodes"""
@@ -62,4 +62,16 @@ class GraphRun(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    graph = relationship("Graph", back_populates="runs") 
+    graph = relationship("Graph", back_populates="runs")
+
+class GraphExecution(Base):
+    __tablename__ = "graph_executions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    graph_id = Column(Integer, ForeignKey("graphs.id"), nullable=False)
+    input_data = Column(Text, nullable=False)  # JSON string of input data
+    output_data = Column(Text, nullable=False)  # JSON string of output data
+    execution_time = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship with graph
+    graph = relationship("Graph", back_populates="executions") 
