@@ -11,6 +11,7 @@ class Graph(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
+    definition = Column(JSON, nullable=True)  # JSON definition of the graph
     nodes = Column(Text, nullable=False)  # JSON string of nodes
     edges = Column(Text, nullable=False)  # JSON string of edges
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -18,6 +19,9 @@ class Graph(Base):
 
     # Relationships
     executions = relationship("GraphExecution", back_populates="graph", cascade="all, delete-orphan")
+    nodes_rel = relationship("GraphNode", back_populates="graph", cascade="all, delete-orphan")
+    edges_rel = relationship("GraphEdge", back_populates="graph", cascade="all, delete-orphan")
+    runs = relationship("GraphRun", back_populates="graph", cascade="all, delete-orphan")
 
 class GraphNode(Base):
     """Model for storing graph nodes"""
@@ -32,7 +36,7 @@ class GraphNode(Base):
     position_y = Column(Integer, nullable=True)  # Y position in the UI
 
     # Relationships
-    graph = relationship("Graph", back_populates="nodes")
+    graph = relationship("Graph", back_populates="nodes_rel")
 
 class GraphEdge(Base):
     """Model for storing graph edges"""
@@ -46,7 +50,7 @@ class GraphEdge(Base):
     condition = Column(Text, nullable=True)  # Condition for conditional edges
 
     # Relationships
-    graph = relationship("Graph", back_populates="edges")
+    graph = relationship("Graph", back_populates="edges_rel")
 
 class GraphRun(Base):
     """Model for storing graph execution runs"""

@@ -20,14 +20,31 @@ class GraphUpdate(BaseModel):
 
 class Graph(GraphBase):
     id: int
+    nodes: str  # JSON string of nodes
+    edges: str  # JSON string of edges
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {
+        "orm_mode": True,
+        "from_attributes": True
+    }
+
+# Response model for Graph
+class GraphResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    definition: Dict[str, Any]
     nodes: List[Dict[str, Any]]
     edges: List[Dict[str, Any]]
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        orm_mode = True
-        from_attributes = True
+    model_config = {
+        "orm_mode": True,
+        "from_attributes": True
+    }
 
 # Node schemas
 class GraphNodeBase(BaseModel):
@@ -44,8 +61,9 @@ class GraphNodeResponse(GraphNodeBase):
     id: int
     graph_id: int
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "orm_mode": True
+    }
 
 # Edge schemas
 class GraphEdgeBase(BaseModel):
@@ -61,8 +79,9 @@ class GraphEdgeResponse(GraphEdgeBase):
     id: int
     graph_id: int
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "orm_mode": True
+    }
 
 # Run schemas
 class GraphRun(BaseModel):
@@ -78,8 +97,9 @@ class GraphRunResponse(BaseModel):
     started_at: datetime
     completed_at: Optional[datetime] = None
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "orm_mode": True
+    }
 
 # Graph execution schemas
 class GraphExecutionBase(BaseModel):
@@ -94,9 +114,10 @@ class GraphExecution(GraphExecutionBase):
     id: int
     execution_time: datetime
 
-    class Config:
-        orm_mode = True
-        from_attributes = True
+    model_config = {
+        "orm_mode": True,
+        "from_attributes": True
+    }
 
 # Input for running a graph
 class GraphRunInput(BaseModel):

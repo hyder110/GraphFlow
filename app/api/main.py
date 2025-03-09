@@ -76,13 +76,19 @@ def health_check():
 @app.post("/api/graphs", response_model=GraphResponse)
 def create_graph(graph: GraphCreate, db: Session = Depends(get_db)):
     """Create a new graph"""
-    logger.info("Creating new graph", data={"name": graph.name})
+    logger.info(f"Creating new graph: {graph.name}")
+    
+    # Convert nodes and edges to JSON strings
+    nodes_json = json.dumps(graph.nodes)
+    edges_json = json.dumps(graph.edges)
     
     # Create a new graph
     db_graph = Graph(
         name=graph.name,
         description=graph.description,
-        definition=graph.definition
+        definition=graph.definition,
+        nodes=nodes_json,
+        edges=edges_json
     )
     
     # Save to database
@@ -90,48 +96,111 @@ def create_graph(graph: GraphCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_graph)
     
-    logger.info("Graph created successfully", data={"graph_id": db_graph.id})
-    return db_graph
+    logger.info(f"Graph created successfully with ID: {db_graph.id}")
+    
+    # Convert back to response format
+    graph_dict = {
+        "id": db_graph.id,
+        "name": db_graph.name,
+        "description": db_graph.description,
+        "definition": db_graph.definition if db_graph.definition else {},
+        "nodes": graph.nodes,  # Use the original nodes list
+        "edges": graph.edges,  # Use the original edges list
+        "created_at": db_graph.created_at,
+        "updated_at": db_graph.updated_at
+    }
+    
+    return graph_dict
 
 @app.get("/api/graphs", response_model=List[GraphResponse])
 def get_graphs(db: Session = Depends(get_db)):
     """Get all graphs"""
     logger.info("Fetching all graphs")
     graphs = db.query(Graph).all()
-    return graphs
+    
+    # Convert nodes and edges from JSON strings to Python objects
+    result = []
+    for graph in graphs:
+        graph_dict = {
+            "id": graph.id,
+            "name": graph.name,
+            "description": graph.description,
+            "definition": graph.definition if graph.definition else {},
+            "nodes": json.loads(graph.nodes) if graph.nodes else [],
+            "edges": json.loads(graph.edges) if graph.edges else [],
+            "created_at": graph.created_at,
+            "updated_at": graph.updated_at
+        }
+        result.append(graph_dict)
+    
+    return result
 
 @app.get("/api/graphs/{graph_id}", response_model=GraphResponse)
 def get_graph(graph_id: int, db: Session = Depends(get_db)):
     """Get a specific graph by ID"""
-    logger.info("Fetching graph", data={"graph_id": graph_id})
+    logger.info(f"Fetching graph with ID {graph_id}")
+    
     graph = db.query(Graph).filter(Graph.id == graph_id).first()
     if not graph:
-        logger.warning("Graph not found", data={"graph_id": graph_id})
-        raise HTTPException(status_code=404, detail=f"Graph with ID {graph_id} not found")
-    return graph
+        logger.warning(f"Graph with ID {graph_id} not found")
+        raise HTTPException(status_code=404, detail="Graph not found")
+    
+    # Convert nodes and edges from JSON strings to Python objects
+    graph_dict = {
+        "id": graph.id,
+        "name": graph.name,
+        "description": graph.description,
+        "definition": graph.definition if graph.definition else {},
+        "nodes": json.loads(graph.nodes) if graph.nodes else [],
+        "edges": json.loads(graph.edges) if graph.edges else [],
+        "created_at": graph.created_at,
+        "updated_at": graph.updated_at
+    }
+    
+    return graph_dict
 
 @app.put("/api/graphs/{graph_id}", response_model=GraphResponse)
-def update_graph(graph_id: int, graph: GraphCreate, db: Session = Depends(get_db)):
+def update_graph(graph_id: int, graph: GraphUpdate, db: Session = Depends(get_db)):
     """Update a graph"""
-    logger.info("Updating graph", data={"graph_id": graph_id})
+    logger.info(f"Updating graph with ID: {graph_id}")
     
     # Get the existing graph
     db_graph = db.query(Graph).filter(Graph.id == graph_id).first()
     if not db_graph:
-        logger.warning("Graph not found for update", data={"graph_id": graph_id})
+        logger.warning(f"Graph with ID {graph_id} not found for update")
         raise HTTPException(status_code=404, detail=f"Graph with ID {graph_id} not found")
     
-    # Update the graph
-    db_graph.name = graph.name
-    db_graph.description = graph.description
-    db_graph.definition = graph.definition
+    # Update the graph fields if provided
+    if graph.name is not None:
+        db_graph.name = graph.name
+    if graph.description is not None:
+        db_graph.description = graph.description
+    
+    # Update nodes and edges if provided
+    if graph.nodes is not None:
+        db_graph.nodes = json.dumps(graph.nodes)
+    if graph.edges is not None:
+        db_graph.edges = json.dumps(graph.edges)
     
     # Save to database
     db.commit()
     db.refresh(db_graph)
     
-    logger.info("Graph updated successfully", data={"graph_id": graph_id})
-    return db_graph
+    logger.info(f"Graph with ID {graph_id} updated successfully")
+    
+    # Convert back to response format
+    graph_dict = {
+        "id": db_graph.id,
+        "name": db_graph.name,
+        "description": db_graph.description,
+        "definition": db_graph.definition if db_graph.definition else {},
+        "nodes": json.loads(db_graph.nodes) if db_graph.nodes else [],
+        "edges": json.loads(db_graph.edges) if db_graph.edges else [],
+        "created_at": db_graph.created_at,
+        "updated_at": db_graph.updated_at
+    }
+    
+    return graph_dict
 
 @app.delete("/api/graphs/{graph_id}")
 def delete_graph(graph_id: int, db: Session = Depends(get_db)):

@@ -1,7 +1,9 @@
 import os
 import logging
-from pydantic import BaseSettings, Field, validator
+from pydantic import Field
+from pydantic_settings import BaseSettings
 from typing import Optional
+from pydantic import field_validator
 
 logger = logging.getLogger("graphflow-api")
 
@@ -43,28 +45,29 @@ class Settings(BaseSettings):
         description="OpenAI API key for LangGraph"
     )
     
-    @validator("CORS_ORIGINS")
+    @field_validator("CORS_ORIGINS")
     def parse_cors_origins(cls, v):
         if v == "*":
             return ["*"]
         return [origin.strip() for origin in v.split(",")]
     
-    @validator("SECRET_KEY")
+    @field_validator("SECRET_KEY")
     def validate_secret_key(cls, v):
         if not v and os.environ.get("ENVIRONMENT", "development") == "production":
             logger.warning("SECRET_KEY is not set in production environment!")
         return v
     
-    @validator("OPENAI_API_KEY")
+    @field_validator("OPENAI_API_KEY")
     def validate_openai_api_key(cls, v):
         if not v:
             logger.warning("OPENAI_API_KEY is not set, some LangGraph features may not work properly")
         return v
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": True
+    }
 
 # Create global settings object
 settings = Settings()
